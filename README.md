@@ -218,13 +218,23 @@ GET /api/analyses
         └─ Pagination
 ```
 
-**Detailed Design:** [API_ANALYSES_LLD.md](API_ANALYSES_LLD.md) - Complete Low Level Design with:
-- System flow diagram
-- Database relationships
-- Response structure
-- Query parameters
-- Performance optimization
-- Error handling
+**Detailed Design Documents:**
+- **[API_ANALYSES_LLD.md](API_ANALYSES_LLD.md)** - Complete Low Level Design for GET /api/analyses endpoint with:
+  - System flow diagram
+  - Database relationships
+  - Response structure
+  - Query parameters
+  - Performance optimization
+  - Error handling
+
+- **[LLD_DIAGRAM.md](LLD_DIAGRAM.md)** - Complete System Low Level Design with:
+  - Overall system architecture
+  - Component interaction flow
+  - Data flow diagrams
+  - Class diagrams
+  - Sequence diagrams
+  - Database schema
+  - Technology stack details
 
 ---
 
