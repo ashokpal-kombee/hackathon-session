@@ -1,0 +1,126 @@
+{
+  "info": {
+    "name": "Log Analysis API",
+    "description": "API for analyzing production logs and system metrics",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Analyze Logs - Database Issue",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"logs\": [\n    {\n      \"message\": \"DB timeout\",\n      \"timestamp\": \"2024-02-14 12:00:00\",\n      \"raw\": \"ERROR: Database connection timeout after 30s\"\n    },\n    {\n      \"message\": \"DB timeout\",\n      \"timestamp\": \"2024-02-14 12:01:00\",\n      \"raw\": \"ERROR: Database connection timeout after 30s\"\n    },\n    {\n      \"message\": \"DB connection reset\",\n      \"timestamp\": \"2024-02-14 12:02:00\",\n      \"raw\": \"ERROR: Connection reset by peer\"\n    }\n  ],\n  \"metrics\": {\n    \"cpu_usage\": 85,\n    \"memory_usage\": 70,\n    \"db_latency\": 400,\n    \"requests_per_sec\": 1200\n  }\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/analyze",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "analyze"]
+        }
+      }
+    },
+    {
+      "name": "Analyze Logs - CPU Issue",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"logs\": [\n    {\n      \"message\": \"Request timeout\",\n      \"timestamp\": \"2024-02-14 12:00:00\"\n    },\n    {\n      \"message\": \"High CPU usage detected\",\n      \"timestamp\": \"2024-02-14 12:01:00\"\n    },\n    {\n      \"message\": \"Thread pool exhausted\",\n      \"timestamp\": \"2024-02-14 12:02:00\"\n    }\n  ],\n  \"metrics\": {\n    \"cpu_usage\": 95,\n    \"memory_usage\": 60,\n    \"db_latency\": 150,\n    \"requests_per_sec\": 2000\n  }\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/analyze",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "analyze"]
+        }
+      }
+    },
+    {
+      "name": "Analyze Logs - Memory Issue",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"logs\": [\n    {\n      \"message\": \"OutOfMemoryError\",\n      \"timestamp\": \"2024-02-14 12:00:00\"\n    },\n    {\n      \"message\": \"GC overhead limit exceeded\",\n      \"timestamp\": \"2024-02-14 12:01:00\"\n    },\n    {\n      \"message\": \"Application crashed\",\n      \"timestamp\": \"2024-02-14 12:02:00\"\n    }\n  ],\n  \"metrics\": {\n    \"cpu_usage\": 70,\n    \"memory_usage\": 98,\n    \"db_latency\": 200,\n    \"requests_per_sec\": 500\n  }\n}"
+        },
+        "url": {
+          "raw": "http://localhost:8000/api/analyze",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "analyze"]
+        }
+      }
+    },
+    {
+      "name": "Get Analysis by ID",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/api/analysis/1",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "analysis", "1"]
+        }
+      }
+    },
+    {
+      "name": "List All Analyses",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/api/analyses",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "analyses"]
+        }
+      }
+    },
+    {
+      "name": "List Completed Analyses",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:8000/api/analyses?status=completed",
+          "protocol": "http",
+          "host": ["localhost"],
+          "port": "8000",
+          "path": ["api", "analyses"],
+          "query": [
+            {
+              "key": "status",
+              "value": "completed"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
