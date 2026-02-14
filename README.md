@@ -87,9 +87,12 @@ Server will start at: `http://localhost:8000`
 
 ## 🎯 Using the API
 
-### Available Endpoint
+### Available Endpoints
 
-**GET /api/analyses** - View all analyzed logs
+1. **GET /api/analyses** - View all analyzed logs
+2. **POST /api/analyze** - Analyze custom logs
+3. **GET /api/analysis/{id}** - Get specific analysis
+4. **POST /api/logs/import** - Import log file 🆕
 
 ### Test the API
 
@@ -109,6 +112,139 @@ curl http://localhost:8000/api/analyses
 2. Create a new GET request
 3. URL: `http://localhost:8000/api/analyses`
 4. Click Send
+
+---
+
+## 📤 Import Log Files (NEW!)
+
+You can now import your own log files directly into the database!
+
+### Using Postman (Easiest Method)
+
+1. **Open Postman**
+2. **Create POST Request**
+   - Method: `POST`
+   - URL: `http://localhost:8000/api/logs/import`
+
+3. **Setup Body**
+   - Go to "Body" tab
+   - Select "form-data"
+   - Add key: `file`
+   - Change type from "Text" to "File" (dropdown)
+   - Click "Select Files" and choose your log file
+
+4. **Send Request**
+   - Click the blue "Send" button
+
+### Response Example
+
+```json
+{
+  "success": true,
+  "message": "Log file imported successfully",
+  "data": {
+    "imported": 589,
+    "skipped": 0,
+    "total_lines": 589,
+    "analysis_id": 2
+  }
+}
+```
+
+### Supported Log Formats
+
+The system automatically detects and parses multiple log formats:
+
+#### Format 1: Laravel Logs
+```
+[2024-02-14 10:30:45] production.ERROR: Database connection failed
+[2024-02-14 10:31:00] local.WARNING: High memory usage
+```
+
+#### Format 2: Bracketed Timestamp
+```
+[2024-02-14 10:30:45] Database connection failed
+[2024-02-14 10:31:00] High memory usage detected
+```
+
+#### Format 3: Plain Timestamp with Level
+```
+2024-02-14 10:30:45 ERROR: Database connection failed
+2024-02-14 10:31:00 WARNING: High memory usage
+```
+
+#### Format 4: Generic Format
+```
+ERROR: Database connection failed
+WARNING: High memory usage detected
+Critical system failure
+```
+
+### View Imported Logs
+
+After importing, view your logs:
+
+**Browser:**
+```
+http://localhost:8000/api/analyses
+```
+
+**Specific Analysis:**
+```
+http://localhost:8000/api/analysis/2
+```
+(Replace `2` with your analysis_id from import response)
+
+**Database Check:**
+```bash
+php artisan tinker
+```
+```php
+// Check total imported logs
+\App\Models\LogEntry::where('analysis_id', 2)->count();
+
+// View latest logs
+\App\Models\LogEntry::where('analysis_id', 2)
+    ->latest()
+    ->take(10)
+    ->get(['severity', 'message', 'log_timestamp']);
+```
+
+### Debug Import Issues
+
+If logs are not importing (skipped count is high), use the debug endpoint:
+
+**Postman:**
+- POST: `http://localhost:8000/api/logs/debug-import`
+- Body: form-data
+- Key: `file` (Type: File)
+- Optional Key: `lines` (Type: Text, Value: `10`)
+
+This will show you:
+- Which lines parsed successfully
+- Which lines failed and why
+- Success rate
+- Detected format for each line
+
+### Import Features
+
+✅ **Automatic Analysis Creation** - Creates analysis record automatically  
+✅ **Multiple Format Support** - Detects Laravel, Apache, Nginx, and generic formats  
+✅ **Severity Detection** - Auto-detects critical, error, warning, info levels  
+✅ **Error Tracking** - Shows which lines failed to parse  
+✅ **Large File Support** - Handles files up to 10MB  
+✅ **Transaction Safety** - Rollback on failure  
+
+### Sample Test File
+
+A sample log file is included for testing:
+```
+storage/logs/sample-import.log
+```
+
+Use this to test the import functionality!
+
+**Detailed Guide:** See [LOG_IMPORT_GUIDE.md](LOG_IMPORT_GUIDE.md) for complete documentation.
 
 ---
 
@@ -326,20 +462,48 @@ php artisan config:clear
 1. ✅ You've set up the project
 2. ✅ You've seeded sample data
 3. ✅ You can view analyses via API
+4. 🆕 Import your own log files!
 
-Want to analyze your own logs? Check out the other endpoints:
-- `POST /api/analyze` - Analyze custom logs
-- `GET /api/analysis/{id}` - Get specific analysis
+### Quick Start with Your Logs
+
+**Step 1: Import Your Log File**
+```
+POST http://localhost:8000/api/logs/import
+Body: form-data
+Key: file (Type: File)
+Value: your-logfile.log
+```
+
+**Step 2: View Imported Logs**
+```
+GET http://localhost:8000/api/analyses
+```
+
+**Step 3: Check Specific Analysis**
+```
+GET http://localhost:8000/api/analysis/{id}
+```
+
+### Additional Resources
+
+- 📖 **[LOG_IMPORT_GUIDE.md](LOG_IMPORT_GUIDE.md)** - Complete import documentation
+- 🔍 **[DEBUG_IMPORT.md](DEBUG_IMPORT.md)** - Troubleshooting import issues
+- 📋 **[POSTMAN_IMPORT_STEPS.md](POSTMAN_IMPORT_STEPS.md)** - Step-by-step Postman guide
+- 🎯 **[ANALYSIS_ID_EXPLAINED.md](ANALYSIS_ID_EXPLAINED.md)** - Understanding analysis IDs
+- 🏗️ **[MCP_IMPLEMENTATION_DETAILS.md](MCP_IMPLEMENTATION_DETAILS.md)** - MCP integration details
 
 ---
 
 ## 💡 Key Features
 
-- View all analyzed error logs
-- See error patterns and frequencies
-- Get actionable solutions
-- Monitor system health metrics
-- Track error severity levels
+- 📊 View all analyzed error logs
+- 🔍 See error patterns and frequencies
+- 💡 Get actionable solutions
+- 📈 Monitor system health metrics
+- 🎯 Track error severity levels
+- 📤 Import log files directly (NEW!)
+- 🤖 AI-powered root cause analysis
+- 🔗 MCP integration for smart context selection
 
 ---
 

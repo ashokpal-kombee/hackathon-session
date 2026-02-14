@@ -9,3 +9,7 @@ Route::post('/analyze-file', [LogAnalysisController::class, 'analyzeFromFile']);
 Route::get('/analysis/{id}', [LogAnalysisController::class, 'show']);
 Route::get('/analyses', [LogAnalysisController::class, 'index']);
 
+// Log Import endpoint
+Route::post('/logs/import', [LogAnalysisController::class, 'importLogFile']);
+Route::post('/logs/debug-import', [LogAnalysisController::class, 'debugImport']);
+

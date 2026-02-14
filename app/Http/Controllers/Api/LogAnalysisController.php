@@ -8,6 +8,7 @@ use App\Services\AIAnalysisService;
 use App\Services\DecisionEngine;
 use App\Services\LogFileReader;
 use App\Services\LogPreprocessor;
+use App\Services\LogFileImporter;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,7 +20,8 @@ class LogAnalysisController extends Controller
         private LogPreprocessor $preprocessor,
         private AIAnalysisService $aiService,
         private DecisionEngine $decisionEngine,
-        private LogFileReader $fileReader
+        private LogFileReader $fileReader,
+        private LogFileImporter $importer
     ) {}
     
     /**
@@ -444,5 +446,228 @@ class LogAnalysisController extends Controller
             ], 500);
         }
     }
-
+    
+    /**
+     * POST /api/logs/import
+     * Import log file and store in database
+     */
+    public function importLogFile(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'file' => 'required|file|mimes:log,txt|max:10240', // Max 10MB
+            'analysis_id' => 'nullable|exists:analyses,id'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => 'Validation failed',
+                'details' => $validator->errors()
+            ], 422);
+        }
+        
+        try {
+            DB::beginTransaction();
+            
+            $file = $request->file('file');
+            $filePath = $file->getRealPath();
+            $analysisId = $request->input('analysis_id');
+            
+            // If no analysis_id provided, create a new analysis
+            if (!$analysisId) {
+                $analysis = Analysis::create([
+                    'status' => 'imported',
+                    'likely_cause' => 'Log file imported: ' . $file->getClientOriginalName(),
+                    'confidence' => 0.0,
+                    'reasoning' => 'Logs imported from file, analysis pending',
+                    'next_steps' => ['Review imported logs', 'Run analysis if needed']
+                ]);
+                $analysisId = $analysis->id;
+            }
+            
+            // Import logs with analysis_id
+            $result = $this->importer->import($filePath, $analysisId);
+            
+            DB::commit();
+            
+            return response()->json([
+                'success' => true,
+                'message' => 'Log file imported successfully',
+                'data' => [
+                    'imported' => $result['imported'],
+                    'skipped' => $result['skipped'],
+                    'total_lines' => $result['imported'] + $result['skipped'],
+                    'analysis_id' => $analysisId,
+                    'sample_errors' => $result['sample_errors'] ?? [],
+                    'note' => $result['skipped'] > 0 ? 'Some lines were skipped. Use /api/logs/debug-import to see details.' : null
+                ]
+            ], 200);
+            
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            return response()->json([
+                'error' => 'Import failed',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * POST /api/logs/debug-import
+     * Debug log file parsing without importing
+     */
+    public function debugImport(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'file' => 'required|file|mimes:log,txt|max:10240',
+            'lines' => 'nullable|integer|min:1|max:50'
+        ]);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'error' => 'Validation failed',
+                'details' => $validator->errors()
+            ], 422);
+        }
+        
+        try {
+            $file = $request->file('file');
+            $filePath = $file->getRealPath();
+            $maxLines = $request->input('lines', 10);
+            
+            $debugInfo = [];
+            $handle = fopen($filePath, 'r');
+            $lineNumber = 0;
+            
+            while (($line = fgets($handle)) !== false && $lineNumber < $maxLines) {
+                $lineNumber++;
+                $line = trim($line);
+                
+                if (empty($line)) {
+                    continue;
+                }
+                
+                try {
+                    // Try to parse using LogFileImporter logic
+                    $parsed = $this->debugParseLine($line);
+                    
+                    $debugInfo[] = [
+                        'line_number' => $lineNumber,
+                        'original' => substr($line, 0, 150),
+                        'parsed' => $parsed,
+                        'status' => 'success'
+                    ];
+                } catch (\Exception $e) {
+                    $debugInfo[] = [
+                        'line_number' => $lineNumber,
+                        'original' => substr($line, 0, 150),
+                        'error' => $e->getMessage(),
+                        'status' => 'failed'
+                    ];
+                }
+            }
+            
+            fclose($handle);
+            
+            $successCount = count(array_filter($debugInfo, fn($item) => $item['status'] === 'success'));
+            $failedCount = count(array_filter($debugInfo, fn($item) => $item['status'] === 'failed'));
+            
+            return response()->json([
+                'success' => true,
+                'summary' => [
+                    'total_lines_checked' => count($debugInfo),
+                    'successfully_parsed' => $successCount,
+                    'failed_to_parse' => $failedCount,
+                    'success_rate' => count($debugInfo) > 0 ? round(($successCount / count($debugInfo)) * 100, 2) . '%' : '0%'
+                ],
+                'sample_lines' => $debugInfo,
+                'recommendation' => $failedCount > 0 ? 'Check the failed lines format. You may need to adjust your log format.' : 'All sample lines parsed successfully!'
+            ]);
+            
+        } catch (\Exception $e) {
+            return response()->json([
+                'error' => 'Debug failed',
+                'message' => $e->getMessage()
+            ], 500);
+        }
+    }
+    
+    /**
+     * Debug parse a single line (same logic as LogFileImporter)
+     */
+    private function debugParseLine(string $line): array
+    {
+        // Format 1: Laravel log format [2024-02-14 10:30:45] environment.LEVEL: message
+        if (preg_match('/\[([\d\-\s:]+)\]\s+\w+\.(\w+):\s+(.+)/s', $line, $matches)) {
+            return [
+                'format' => 'Laravel',
+                'timestamp' => $matches[1],
+                'severity' => strtolower($matches[2]),
+                'message' => substr(trim($matches[3]), 0, 100)
+            ];
+        }
+        
+        // Format 2: [2024-02-14 10:30:45] message (without environment)
+        if (preg_match('/\[([\d\-\s:]+)\]\s+(.+)/s', $line, $matches)) {
+            return [
+                'format' => 'Bracketed timestamp',
+                'timestamp' => $matches[1],
+                'severity' => $this->detectSeverity($matches[2]),
+                'message' => substr(trim($matches[2]), 0, 100)
+            ];
+        }
+        
+        // Format 3: 2024-02-14 10:30:45 LEVEL: message (without brackets)
+        if (preg_match('/([\d\-\s:]+)\s+(ERROR|WARNING|INFO|CRITICAL|DEBUG|NOTICE):\s+(.+)/i', $line, $matches)) {
+            return [
+                'format' => 'Plain timestamp with level',
+                'timestamp' => $matches[1],
+                'severity' => strtolower($matches[2]),
+                'message' => substr(trim($matches[3]), 0, 100)
+            ];
+        }
+        
+        // Format 4: Timestamp at start (YYYY-MM-DD HH:MM:SS or similar)
+        if (preg_match('/^([\d\-\/\s:]+)\s+(.+)/s', $line, $matches)) {
+            $timestamp = $matches[1];
+            $message = $matches[2];
+            
+            if (strlen($timestamp) >= 10) {
+                return [
+                    'format' => 'Timestamp prefix',
+                    'timestamp' => $timestamp,
+                    'severity' => $this->detectSeverity($message),
+                    'message' => substr(trim($message), 0, 100)
+                ];
+            }
+        }
+        
+        // Format 5: Generic - no timestamp found
+        return [
+            'format' => 'Generic (no timestamp)',
+            'timestamp' => 'current time',
+            'severity' => $this->detectSeverity($line),
+            'message' => substr(trim($line), 0, 100)
+        ];
+    }
+    
+    private function detectSeverity(string $line): string
+    {
+        $lineLower = strtolower($line);
+        
+        if (str_contains($lineLower, 'critical') || str_contains($lineLower, 'fatal')) {
+            return 'critical';
+        }
+        if (str_contains($lineLower, 'error') || str_contains($lineLower, 'exception')) {
+            return 'error';
+        }
+        if (str_contains($lineLower, 'warning') || str_contains($lineLower, 'warn')) {
+            return 'warning';
+        }
+        if (str_contains($lineLower, 'info') || str_contains($lineLower, 'notice')) {
+            return 'info';
+        }
+        
+        return 'info';
+    }
 }
